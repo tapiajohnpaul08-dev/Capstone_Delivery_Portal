@@ -1,69 +1,69 @@
 <template>
   <div class="card">
     <div class="card-body">
-      <!-- Header -->
       <div class="flex justify-between items-start mb-3">
         <div>
-          <h3 class="font-semibold text-gray-900">{{ order.customerName }}</h3>
-          <p class="text-sm text-gray-500">{{ order.customerPhone }}</p>
+          <h3 class="font-semibold text-gray-900">{{ displayCustomerName }}</h3>
+          <p class="text-sm text-gray-500">{{ displayCustomerPhone }}</p>
+          <p class="text-xs text-gray-400">Order: {{ order.orderId || order._id || '' }}</p>
         </div>
-        <StatusBadge :status="order.status" />
+        <StatusBadge :status="displayStatus" />
       </div>
 
-      <!-- Details -->
       <div class="space-y-2 text-sm">
         <div class="flex items-start gap-2 text-gray-600">
           <MapPin :size="16" class="mt-0.5 flex-shrink-0" />
-          <span>{{ order.address }}</span>
+          <span>{{ displayAddress }}</span>
         </div>
         
         <div class="flex items-center gap-2 text-gray-600">
           <Package :size="16" class="flex-shrink-0" />
-          <span>{{ order.items.join(', ') }}</span>
+          <span>{{ displayItems }}</span>
         </div>
 
         <div class="flex justify-between text-gray-700 font-medium pt-1 border-t border-gray-100">
-          <span>₱{{ order.total.toLocaleString() }}</span>
-          <span class="text-green-600">Delivery: ₱{{ order.deliveryFee }}</span>
+          <span>₱{{ displayTotal.toLocaleString() }}</span>
+          <span class="text-green-600" v-if="order.deliveryFee">Delivery: ₱{{ (order.deliveryFee || 0).toLocaleString() }}</span>
         </div>
 
         <div v-if="order.notes" class="text-sm text-gray-500 bg-gray-50 p-2 rounded-lg">
-          📝 {{ order.notes }}
+          <FileText :size="14" class="inline mr-1" />
+          {{ order.notes }}
         </div>
 
-        <!-- Proof of Delivery Upload -->
-        <div v-if="order.status === 'out-for-delivery'" class="mt-3">
-          <label class="block text-sm font-medium text-gray-700 mb-1.5">
-            Upload Proof of Delivery
-          </label>
-          <input 
-            type="file" 
-            accept="image/*"
-            @change="handleFileUpload($event, order.id)"
-            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 file:transition-colors cursor-pointer"
-          />
-        </div>
+        <div v-if="isAssigned" class="mt-3 border-t border-gray-100 pt-3">
+          <div class="mb-3">
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">
+              Upload Proof of Delivery <span class="text-gray-400 text-xs">(Optional)</span>
+            </label>
+            <input 
+              type="file" 
+              accept="image/*"
+              @change="handleFileUpload($event, orderId)"
+              class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 file:transition-colors cursor-pointer"
+            />
+          </div>
 
-        <!-- Action Buttons -->
-        <div v-if="availableActions.length > 0" class="flex gap-2 mt-3">
           <button 
-            v-for="action in availableActions" 
-            :key="action"
-            @click="handleAction(action, order.id)"
-            class="flex-1 py-2 rounded-lg font-medium text-sm transition-colors"
-            :class="getActionButtonClass(action)"
+            @click="handleComplete"
+            class="w-full py-3 rounded-lg font-medium text-sm bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm flex items-center justify-center gap-2"
           >
-            {{ getActionLabel(action) }}
+            <CheckCircle :size="18" />
+            Mark as Completed
           </button>
-
         </div>
 
-        <!-- Timestamps -->
-        <div v-if="order.status === 'completed' && order.completedAt" class="text-xs text-gray-400 mt-2 pt-1 border-t border-gray-100">
+        <div v-if="displayStatus === 'completed' && order.completedAt" class="text-xs text-gray-400 mt-2 pt-1 border-t border-gray-100">
+          <CheckCircle :size="12" class="inline mr-1 text-green-500" />
           Completed: {{ formatDate(order.completedAt) }}
         </div>
-        <div v-if="order.status === 'cancelled' && order.cancelledAt" class="text-xs text-red-400 mt-2 pt-1 border-t border-gray-100">
+        <div v-if="displayStatus === 'cancelled' && order.cancelledAt" class="text-xs text-red-400 mt-2 pt-1 border-t border-gray-100">
+          <XCircle :size="12" class="inline mr-1" />
           Cancelled: {{ formatDate(order.cancelledAt) }}
+        </div>
+        <div v-if="isAssigned && order.createdAt" class="text-xs text-blue-400 mt-2 pt-1 border-t border-gray-100">
+          <Package :size="12" class="inline mr-1" />
+          Assigned: {{ formatDate(order.createdAt) }}
         </div>
       </div>
     </div>
@@ -72,9 +72,9 @@
 
 <script setup>
 import { computed } from 'vue'
-import { MapPin, Package } from 'lucide-vue-next'
+import { MapPin, Package, CheckCircle, XCircle, FileText } from 'lucide-vue-next'
 import StatusBadge from './StatusBadge.vue'
-import { getStatusActions, getStatusLabel } from '../../data/mockData'
+import { useModal } from '../../composables/useModal'
 
 const props = defineProps({
   order: {
@@ -83,13 +83,71 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update-status', 'upload-proof'])
+const emit = defineEmits(['complete-order', 'upload-proof'])
+const { confirm } = useModal()
 
-const availableActions = computed(() => {
-  return getStatusActions(props.order.status)
+const orderId = computed(() => props.order.id || props.order._id)
+
+const isAssigned = computed(() => {
+  const status = props.order.status || ''
+  return status === 'out-for-delivery'
+})
+
+const displayCustomerName = computed(() => {
+  const order = props.order
+  return order.customerName || 
+         order.customer?.name || 
+         order.customer?.firstName + ' ' + order.customer?.lastName ||
+         'Unknown Customer'
+})
+
+const displayCustomerPhone = computed(() => {
+  const order = props.order
+  return order.customerPhone || 
+         order.customer?.phone || 
+         order.phoneNumber ||
+         'N/A'
+})
+
+const displayAddress = computed(() => {
+  const order = props.order
+  return order.address || 
+         order.customer?.address || 
+         order.deliveryAddress ||
+         'No address provided'
+})
+
+const displayItems = computed(() => {
+  const order = props.order
+  if (Array.isArray(order.items)) {
+    if (typeof order.items[0] === 'string') {
+      return order.items.join(', ')
+    } else if (typeof order.items[0] === 'object') {
+      return order.items.map(item => `${item.name} (${item.quantity}pcs)`).join(', ')
+    }
+  }
+  return order.productName || order.items || 'No items'
+})
+
+const displayTotal = computed(() => {
+  return props.order.total || props.order.totalAmount || props.order.amount || 0
+})
+
+const displayStatus = computed(() => {
+  const status = props.order.status || ''
+  const statusMap = {
+    'Pending': 'assigned',
+    'Scheduled': 'assigned',
+    'In Production': 'assigned',
+    'Out for Delivery': 'out-for-delivery',
+    'Completed': 'completed',
+    'Cancelled': 'cancelled'
+  }
+  return statusMap[status] || 'assigned'
 })
 
 const formatDate = (dateString) => {
+  if (!dateString) return ''
   return new Date(dateString).toLocaleString('en-PH', {
     month: 'short',
     day: 'numeric',
@@ -98,26 +156,24 @@ const formatDate = (dateString) => {
   })
 }
 
-const getActionLabel = (action) => {
-  return getStatusLabel(action)
-}
-
-const getActionButtonClass = (action) => {
-  const classes = {
-    'out-for-delivery': 'bg-blue-600 text-white hover:bg-blue-700',
-    'completed': 'bg-green-600 text-white hover:bg-green-700'
+const handleComplete = async () => {
+  const confirmed = await confirm({
+    title: 'Complete Order',
+    message: 'Are you sure you want to mark this order as completed? This action cannot be undone.',
+    confirmText: 'Yes, Complete',
+    cancelText: 'Cancel',
+    type: 'success'
+  })
+  
+  if (confirmed) {
+    emit('complete-order', { orderId: orderId.value })
   }
-  return classes[action] || 'bg-gray-600 text-white hover:bg-gray-700'
 }
 
-const handleAction = (action, orderId) => {
-  emit('update-status', { orderId, newStatus: action })
-}
-
-const handleFileUpload = (event, orderId) => {
+const handleFileUpload = (event) => {
   const file = event.target.files[0]
   if (file) {
-    emit('upload-proof', { orderId, file })
+    emit('upload-proof', { orderId: orderId.value, file })
   }
 }
 </script>

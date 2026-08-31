@@ -27,9 +27,9 @@ import {
 } from 'lucide-vue-next'
 
 const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/assigned-orders', label: 'Assigned', icon: ClipboardList },
-  { path: '/order-history', label: 'History', icon: History },
-  { path: '/profile', label: 'Profile', icon: User },
+  { path: '/rider/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/rider/assigned-orders', label: 'Assigned', icon: ClipboardList },
+  { path: '/rider/order-history', label: 'History', icon: History },
+  { path: '/rider/profile', label: 'Profile', icon: User },
 ]
 </script>

@@ -1,175 +1,148 @@
 // composables/useOrders.js
 import { ref, computed, onMounted } from 'vue'
 import { useAuth } from './useAuth'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1'
+import { apiService } from '../api/api'
+import { useToast } from './useToast'
 
 export function useOrders() {
   const { user } = useAuth()
+  const { success, error } = useToast()
   const orders = ref([])
+  const historyOrdersData = ref([])
   const isLoading = ref(false)
+  const isLoadingHistory = ref(false)
   const stats = ref({
     assigned: 0,
-    pending: 0,
-    completed: 0,
-    todayEarnings: 0
+    completed: 0
   })
 
-  // Fetch orders assigned to this driver
+  const getDriverId = () => {
+    return user.value?.driverId || ''
+  }
+
   const fetchAssignedOrders = async () => {
     isLoading.value = true
     try {
-      const token = localStorage.getItem('driverToken')
-      if (!token) {
-        console.warn('No token found')
-        return
-      }
-
-      console.log(`📡 Fetching assigned orders from: ${API_BASE_URL}/drivers/orders/assigned`)
+      console.log(`📡 Fetching assigned orders for driver: ${getDriverId()}`)
       
-      const response = await fetch(`${API_BASE_URL}/drivers/orders/assigned`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        body: JSON.stringify({ driverId: user.driverId })
-        }
-      })
-
-      const data = await response.json()
+      const response = await apiService.getAssignedOrders()
+      const data = response.data
       
       if (data.success) {
         orders.value = data.data || []
-        updateStats()
         console.log(`📦 Loaded ${orders.value.length} assigned orders`)
+        updateStats()
       } else {
         console.error('Failed to fetch orders:', data.message)
         orders.value = []
       }
-    } catch (error) {
-      console.error('Error fetching orders:', error)
+    } catch (err) {
+      console.error('Error fetching orders:', err)
       orders.value = []
     } finally {
       isLoading.value = false
     }
   }
 
-  // Fetch order history
   const fetchOrderHistory = async () => {
+    isLoadingHistory.value = true
     try {
-      const token = localStorage.getItem('driverToken')
-      if (!token) return []
-
-      console.log(`📡 Fetching order history from: ${API_BASE_URL}/drivers/orders/history`)
+      console.log(`📡 Fetching order history for driver: ${getDriverId()}`)
       
-      const response = await fetch(`${API_BASE_URL}/drivers/orders/history`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      const data = await response.json()
+      const response = await apiService.getOrderHistory()
+      const data = response.data
+      
       if (data.success) {
-        return data.data || []
+        historyOrdersData.value = data.data || []
+        console.log(`📦 Loaded ${historyOrdersData.value.length} history orders`)
+        return historyOrdersData.value
+      } else {
+        console.error('Failed to fetch order history:', data.message)
+        historyOrdersData.value = []
+        return []
       }
+    } catch (err) {
+      console.error('Error fetching order history:', err)
+      historyOrdersData.value = []
       return []
-    } catch (error) {
-      console.error('Error fetching order history:', error)
-      return []
+    } finally {
+      isLoadingHistory.value = false
     }
   }
 
-  // Update order status
   const updateOrderStatus = async (orderId, newStatus, proofFile = null) => {
     try {
-      const token = localStorage.getItem('driverToken')
-      if (!token) throw new Error('Not authenticated')
-
-      const formData = new FormData()
-      formData.append('status', newStatus)
-      if (proofFile) {
-        formData.append('proofOfDelivery', proofFile)
-      }
-
-      console.log(`📡 Updating order ${orderId} to ${newStatus} at: ${API_BASE_URL}/drivers/orders/${orderId}/status`)
-
-      const response = await fetch(`${API_BASE_URL}/drivers/orders/${orderId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        // Update local orders
-        const order = orders.value.find(o => o.id === orderId || o._id === orderId)
-        if (order) {
-          const oldStatus = order.status
-          order.status = newStatus
-          if (newStatus === 'completed') {
-            order.completedAt = new Date().toISOString()
-            if (proofFile) {
-              order.proofOfDelivery = proofFile.name
-            }
-          }
-          updateStats()
-        }
-        return true
-      } else {
-        console.error('Failed to update order:', data.message)
+      if (newStatus !== 'completed') {
+        error('You can only mark orders as completed')
         return false
       }
-    } catch (error) {
-      console.error('Error updating order:', error)
+
+      console.log(`📡 Marking order ${orderId} as completed...`)
+
+      const response = await apiService.updateOrderStatus(orderId, newStatus, proofFile)
+      const data = response.data
+
+      if (data.success) {
+        const orderIndex = orders.value.findIndex(o => o.id === orderId || o._id === orderId)
+        if (orderIndex !== -1) {
+          const completedOrder = { ...orders.value[orderIndex], status: 'completed' }
+          orders.value.splice(orderIndex, 1)
+          historyOrdersData.value.unshift(completedOrder)
+          updateStats()
+        }
+        success('Order marked as completed successfully! 🎉')
+        return true
+      } else {
+        error(data.message || 'Failed to update order')
+        return false
+      }
+    } catch (err) {
+      error('Error updating order. Please try again.')
       return false
     }
   }
 
-  // Update stats
   const updateStats = () => {
-    const assigned = orders.value.filter(o => o.status === 'assigned').length
-    const pending = orders.value.filter(o => o.status === 'out-for-delivery').length
-    const completed = orders.value.filter(o => o.status === 'completed').length
+    const assigned = orders.value.filter(o => o.status === 'out-for-delivery').length
+    const completed = historyOrdersData.value.filter(o => o.status === 'completed').length
     
     stats.value = {
       assigned,
-      pending,
-      completed,
-      todayEarnings: completed * 150 // Example: ₱150 per delivery
+      completed
     }
   }
 
-  // Computed properties
   const assignedOrders = computed(() => {
-    return orders.value.filter(o => o.status === 'assigned' || o.status === 'out-for-delivery')
+    return orders.value.filter(o => o.status === 'out-for-delivery')
   })
 
   const completedOrders = computed(() => {
-    return orders.value.filter(o => o.status === 'completed')
+    return historyOrdersData.value.filter(o => o.status === 'completed')
   })
 
   const cancelledOrders = computed(() => {
-    return orders.value.filter(o => o.status === 'cancelled')
+    return historyOrdersData.value.filter(o => o.status === 'cancelled')
   })
 
   const historyOrders = computed(() => {
-    return orders.value.filter(o => o.status === 'completed' || o.status === 'cancelled')
+    return historyOrdersData.value.filter(o => o.status === 'completed' || o.status === 'cancelled')
   })
 
   const getOrderById = (id) => {
-    return orders.value.find(o => o.id === id || o._id === id)
+    return orders.value.find(o => o.id === id || o._id === id) ||
+           historyOrdersData.value.find(o => o.id === id || o._id === id)
   }
 
-  // Initialize
   onMounted(() => {
     fetchAssignedOrders()
   })
 
   return {
     orders,
+    historyOrdersData,
     stats,
     isLoading,
+    isLoadingHistory,
     assignedOrders,
     completedOrders,
     cancelledOrders,

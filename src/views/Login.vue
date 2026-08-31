@@ -5,7 +5,7 @@
       <div class="text-center mb-8">
         <div class="inline-block bg-white rounded-2xl shadow-lg p-4 mb-4">
           <img 
-            src="" 
+            src="../assets/logo.png" 
             alt="ACAPSHOP" 
             class="h-16 w-16 object-contain"
             @error="(e) => e.target.style.display = 'none'"
@@ -46,17 +46,18 @@
 
           <button 
             type="submit" 
-            class="btn-primary w-full"
+            class="btn-primary w-full flex items-center justify-center gap-2"
             :disabled="loading"
           >
-            <span v-if="!loading">Sign In</span>
-            <span v-else class="flex items-center gap-2">
-              <span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-              Loading...
-            </span>
+            <Loader2 v-if="loading" :size="18" class="animate-spin" />
+            <template v-else>
+              <LogIn :size="18" />
+              Sign In
+            </template>
           </button>
 
           <div v-if="error" class="mt-3 text-sm text-red-600 text-center bg-red-50 p-2 rounded-lg">
+            <AlertCircle :size="14" class="inline mr-1" />
             {{ error }}
           </div>
 
@@ -72,39 +73,47 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { LogIn, Loader2, AlertCircle } from 'lucide-vue-next'
 import { useAuth } from '../composables/useAuth'
+import { useToast } from '../composables/useToast'
 
 const router = useRouter()
 const { login } = useAuth()
+const { error: showError, success: showSuccess } = useToast()
 const email = ref('rider@acapshop.com')
 const password = ref('password')
 const loading = ref(false)
 const error = ref('')
 
 const handleLogin = async () => {
-  // Validate inputs
   if (!email.value || !password.value) {
     error.value = 'Please enter both email and password'
+    showError('Please enter both email and password')
     return
   }
 
   loading.value = true
   error.value = ''
   
-  console.log('🔐 Attempting login with:', email.value)
-  
   try {
     const result = await login(email.value, password.value)
     
     if (result.success) {
-      console.log('✅ Login successful, redirecting to dashboard...')
-      router.push('/dashboard')
+      showSuccess('Welcome back!')
+      const redirectPath = sessionStorage.getItem('redirectAfterLogin')
+      if (redirectPath) {
+        sessionStorage.removeItem('redirectAfterLogin')
+        router.push(redirectPath)
+      } else {
+        router.push('/rider/dashboard')
+      }
     } else {
-      error.value = result.message || 'Login failed. Please try again.'
+      error.value = result.message || 'Login failed'
+      showError(error.value)
     }
   } catch (err) {
-    console.error('❌ Login error:', err)
-    error.value = err.message || 'Login failed. Please check your credentials and try again.'
+    error.value = err.message || 'Login failed. Please try again.'
+    showError(error.value)
   } finally {
     loading.value = false
   }
@@ -117,11 +126,7 @@ const handleLogin = async () => {
 }
 
 @keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>

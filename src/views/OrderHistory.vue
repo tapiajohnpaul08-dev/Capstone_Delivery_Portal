@@ -1,73 +1,43 @@
 <template>
   <div>
-    <h2 class="text-xl font-bold text-gray-900 mb-4">Order History</h2>
-    
-    <!-- Filters -->
-    <div class="flex gap-2 mb-4">
-      <button 
-        v-for="filter in filters" 
-        :key="filter.key"
-        @click="activeFilter = filter.key"
-        class="px-4 py-1.5 rounded-full text-sm font-medium transition-colors"
-        :class="activeFilter === filter.key 
-          ? 'bg-blue-600 text-white' 
-          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
-      >
-        {{ filter.label }}
-      </button>
+    <h2 class="text-xl font-bold text-gray-900 mb-4">
+      <History :size="20" class="inline mr-2" />
+      Completed Orders
+    </h2>
+
+    <!-- Loading State -->
+    <div v-if="isLoadingHistory" class="text-center py-8">
+      <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+      <p class="text-gray-500 text-sm mt-2">Loading history...</p>
     </div>
 
     <!-- History List -->
-    <div class="space-y-3">
-      <template v-if="filteredHistory.length > 0">
+    <div v-else class="space-y-3">
+      <template v-if="historyOrders.length > 0">
         <OrderCard 
-          v-for="order in filteredHistory" 
-          :key="order.id"
+          v-for="order in historyOrders" 
+          :key="order.id || order._id"
           :order="order"
-          @update-status="handleStatusUpdate"
-          @upload-proof="handleProofUpload"
         />
       </template>
       
       <div v-else class="bg-white border rounded-xl p-12 text-center text-gray-500">
         <History :size="48" class="mx-auto text-gray-300 mb-2" />
-        <p class="text-sm">No {{ activeFilter === 'all' ? '' : activeFilter }} orders in history</p>
+        <p class="text-sm">No completed orders yet</p>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { onMounted } from 'vue'
 import { History } from 'lucide-vue-next'
 import OrderCard from '../components/Orders/OrderCard.vue'
 import { useOrders } from '../composables/useOrders'
 
-const { historyOrders, updateOrderStatus } = useOrders()
+const { historyOrders, isLoadingHistory, fetchOrderHistory } = useOrders()
 
-const filters = [
-  { key: 'all', label: 'All' },
-  { key: 'completed', label: 'Completed' },
-  { key: 'cancelled', label: 'Cancelled' }
-]
-
-const activeFilter = ref('all')
-
-const filteredHistory = computed(() => {
-  if (activeFilter.value === 'all') {
-    return historyOrders.value
-  }
-  return historyOrders.value.filter(o => o.status === activeFilter.value)
+onMounted(() => {
+  fetchOrderHistory()
 })
-
-const handleStatusUpdate = ({ orderId, newStatus }) => {
-  const success = updateOrderStatus(orderId, newStatus)
-  if (success) {
-    console.log('Order updated successfully')
-  }
-}
-
-const handleProofUpload = ({ orderId, file }) => {
-  console.log('Uploading proof for order:', orderId, file)
-}
 </script>

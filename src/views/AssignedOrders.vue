@@ -1,26 +1,24 @@
 <template>
   <div>
-    <h2 class="text-xl font-bold text-gray-900 mb-4">Assigned Orders</h2>
+    <h2 class="text-xl font-bold text-gray-900 mb-4">My Orders</h2>
     
-    <!-- Loading State -->
     <div v-if="isLoading" class="text-center py-8">
       <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
       <p class="text-gray-500 text-sm mt-2">Loading orders...</p>
     </div>
 
-    <!-- Orders -->
     <div v-else>
-      <!-- Tabs -->
       <div class="flex gap-1 bg-gray-100 border rounded-lg p-1 mb-4">
         <button 
           v-for="tab in tabs" 
           :key="tab.key"
           @click="activeTab = tab.key"
-          class="flex-1 py-2 rounded-lg text-sm font-medium transition-colors"
+          class="flex-1 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1"
           :class="activeTab === tab.key
             ? 'bg-white border shadow-sm text-gray-900'
             : 'text-gray-500 hover:text-gray-700'"
         >
+          <component :is="tab.icon" :size="16" />
           {{ tab.label }} 
           <span class="text-xs" :class="activeTab === tab.key ? 'text-blue-600' : 'text-gray-400'">
             ({{ getTabCount(tab.key) }})
@@ -28,21 +26,20 @@
         </button>
       </div>
 
-      <!-- Order List -->
       <div class="space-y-3">
         <template v-if="filteredOrders.length > 0">
           <OrderCard 
             v-for="order in filteredOrders" 
             :key="order.id || order._id"
             :order="order"
-            @update-status="handleStatusUpdate"
+            @complete-order="handleCompleteOrder"
             @upload-proof="handleProofUpload"
           />
         </template>
         
         <div v-else class="bg-white border rounded-xl p-12 text-center text-gray-500">
           <ClipboardList :size="48" class="mx-auto text-gray-300 mb-2" />
-          <p class="text-sm">No {{ activeTab }} orders</p>
+          <p class="text-sm">{{ emptyMessage }}</p>
         </div>
       </div>
     </div>
@@ -50,51 +47,61 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { ClipboardList } from 'lucide-vue-next'
+import { ref, computed, onMounted, watch } from 'vue'
+import { ClipboardList, Package, CheckCircle } from 'lucide-vue-next'
 import OrderCard from '../components/Orders/OrderCard.vue'
 import { useOrders } from '../composables/useOrders'
 
-const { assignedOrders, isLoading, updateOrderStatus, fetchAssignedOrders } = useOrders()
+const { assignedOrders, completedOrders, isLoading, updateOrderStatus, fetchAssignedOrders, fetchOrderHistory } = useOrders()
 
 const tabs = [
-  { key: 'assigned', label: 'Assigned' },
-  { key: 'out-for-delivery', label: 'Out for Delivery' },
-  { key: 'all', label: 'All' }
+  { key: 'assigned', label: 'Assigned', icon: Package },
+  { key: 'completed', label: 'Completed', icon: CheckCircle }
 ]
 
 const activeTab = ref('assigned')
 
 const filteredOrders = computed(() => {
-  if (activeTab.value === 'all') {
-    return assignedOrders.value
-  }
-  return assignedOrders.value.filter(o => o.status === activeTab.value)
+  if (activeTab.value === 'assigned') return assignedOrders.value
+  if (activeTab.value === 'completed') return completedOrders.value
+  return []
 })
 
 const getTabCount = (tabKey) => {
-  if (tabKey === 'all') {
-    return assignedOrders.value.length
-  }
-  return assignedOrders.value.filter(o => o.status === tabKey).length
+  if (tabKey === 'assigned') return assignedOrders.value.length
+  if (tabKey === 'completed') return completedOrders.value.length
+  return 0
 }
 
-const handleStatusUpdate = async ({ orderId, newStatus }) => {
-  const success = await updateOrderStatus(orderId, newStatus)
+const emptyMessage = computed(() => {
+  if (activeTab.value === 'assigned') return 'No assigned orders. Check back later!'
+  if (activeTab.value === 'completed') return 'No completed orders yet'
+  return 'No orders found'
+})
+
+const handleCompleteOrder = async ({ orderId }) => {
+  console.log('📡 Completing order:', orderId)
+  const success = await updateOrderStatus(orderId, 'completed')
   if (success) {
-    console.log('Order updated successfully')
+    await Promise.all([fetchAssignedOrders(), fetchOrderHistory()])
   }
 }
 
 const handleProofUpload = async ({ orderId, file }) => {
-  console.log('Uploading proof for order:', orderId, file)
+  console.log('📡 Uploading proof for order:', orderId, file)
   const success = await updateOrderStatus(orderId, 'completed', file)
   if (success) {
-    console.log('Order completed with proof')
+    await Promise.all([fetchAssignedOrders(), fetchOrderHistory()])
   }
 }
 
-onMounted(() => {
-  fetchAssignedOrders()
+onMounted(async () => {
+  await Promise.all([fetchAssignedOrders(), fetchOrderHistory()])
+})
+
+watch(activeTab, async (newTab) => {
+  if (newTab === 'completed') {
+    await fetchOrderHistory()
+  }
 })
 </script>

@@ -1,14 +1,18 @@
 // composables/useAuth.js
-import { reactive, ref } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1'
+import { apiService } from '../api/api'
 
 export function useAuth() {
   const router = useRouter()
-  const isAuthenticated = ref(!!localStorage.getItem('driverToken'))
   
-  const user = reactive({
+  const getToken = () => {
+    return localStorage.getItem('driverToken') || localStorage.getItem('token')
+  }
+  
+  const isAuthenticated = ref(!!getToken())
+  
+  const user = ref({
     driverId: '',
     firstName: '',
     lastName: '',
@@ -24,49 +28,54 @@ export function useAuth() {
     assignedOrdersCount: 0
   })
 
-  // Load user from localStorage
   const loadUser = () => {
     const storedUser = localStorage.getItem('driverUser')
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser)
-        Object.assign(user, parsed)
-        console.log('✅ Driver user loaded:', user.fullName || user.displayName || user.email)
+        user.value = { ...user.value, ...parsed }
+        console.log('✅ Driver user loaded:', user.value.fullName || user.value.displayName || user.value.email)
+        return true
       } catch (e) {
         console.error('Error parsing user data:', e)
+        return false
       }
     }
+    return false
   }
 
   const login = async (email, password) => {
     try {
-      console.log(`📡 Sending login request to: ${API_BASE_URL}/drivers/login`)
+      console.log(`📡 Sending login request...`)
       
-      const response = await fetch(`${API_BASE_URL}/drivers/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email, password })
-      })
-
-      const data = await response.json()
+      const response = await apiService.login(email, password)
+      const data = response.data
+      
       console.log('📥 Login response:', data)
 
-      if (!response.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.message || 'Login failed')
       }
 
-      // Store tokens and user data
-      localStorage.setItem('driverToken', data.data.token)
-      localStorage.setItem('token', data.data.token) // For compatibility
-      localStorage.setItem('driverUser', JSON.stringify(data.data))
+      const token = data.token || data.data?.token || null
       
-      // Update reactive user
-      Object.assign(user, data.data)
+      if (!token) {
+        console.error('❌ No token in response:', data)
+        throw new Error('No token received from server')
+      }
+
+      console.log('🔑 Token received:', token.substring(0, 20) + '...')
+
+      const userData = data.data || data.user || {}
+      
+      localStorage.setItem('driverToken', token)
+      localStorage.setItem('token', token)
+      localStorage.setItem('driverUser', JSON.stringify(userData))
+      
+      user.value = { ...user.value, ...userData }
       isAuthenticated.value = true
 
-      console.log(`✅ Login successful for: ${user.fullName || user.displayName || user.email}`)
+      console.log(`✅ Login successful for: ${user.value.fullName || user.value.displayName || user.value.email}`)
       
       return { success: true, data: data }
     } catch (error) {
@@ -81,7 +90,7 @@ export function useAuth() {
     localStorage.removeItem('token')
     localStorage.removeItem('driverUser')
     isAuthenticated.value = false
-    Object.assign(user, {
+    user.value = {
       driverId: '',
       firstName: '',
       lastName: '',
@@ -95,22 +104,22 @@ export function useAuth() {
       displayName: '',
       available: true,
       assignedOrdersCount: 0
-    })
-    router.push('/login')
+    }
+    router.push('/')
   }
 
-  // Check if token is valid on load
   const checkAuth = () => {
-    const token = localStorage.getItem('driverToken')
+    const token = getToken()
     if (token) {
+      console.log('🔑 Token found in localStorage')
       isAuthenticated.value = true
       loadUser()
       return true
     }
+    console.log('❌ No token found in localStorage')
     return false
   }
 
-  // Load user on init
   loadUser()
 
   return {
@@ -119,6 +128,7 @@ export function useAuth() {
     login,
     logout,
     loadUser,
-    checkAuth
+    checkAuth,
+    getToken
   }
 }
