@@ -70,37 +70,67 @@ export function useOrders() {
     }
   }
 
-  const updateOrderStatus = async (orderId, newStatus, proofFile = null) => {
+// composables/useOrders.js
+const updateOrderStatus = async (orderId, newStatus, proofFile = null) => {
     try {
-      if (newStatus !== 'completed') {
-        error('You can only mark orders as completed')
-        return false
-      }
-
-      console.log(`📡 Marking order ${orderId} as completed...`)
-
-      const response = await apiService.updateOrderStatus(orderId, newStatus, proofFile)
-      const data = response.data
-
-      if (data.success) {
-        const orderIndex = orders.value.findIndex(o => o.id === orderId || o._id === orderId)
-        if (orderIndex !== -1) {
-          const completedOrder = { ...orders.value[orderIndex], status: 'completed' }
-          orders.value.splice(orderIndex, 1)
-          historyOrdersData.value.unshift(completedOrder)
-          updateStats()
+        console.log(`📡 Attempting to update order ${orderId} to status: ${newStatus}`)
+        
+        // Normalize status - always use 'Completed' for backend
+        let statusToSend = 'Completed'
+        
+        if (newStatus === 'completed' || newStatus === 'Completed') {
+            statusToSend = 'Completed'
+        } else {
+            error('You can only mark orders as Completed')
+            return false
         }
-        success('Order marked as completed successfully! 🎉')
-        return true
-      } else {
-        error(data.message || 'Failed to update order')
-        return false
-      }
+
+        console.log(`📡 Marking order ${orderId} as ${statusToSend}...`)
+
+        let response
+        
+        if (proofFile) {
+            // For file upload, use FormData
+            const formData = new FormData()
+            formData.append('status', statusToSend)
+            formData.append('proofOfDelivery', proofFile)
+            console.log(`📎 Attaching proof file: ${proofFile.name} (${proofFile.size} bytes)`)
+            
+            // ✅ FIX: Pass the FormData as the second parameter
+            response = await apiService.updateOrderStatus(orderId, formData)
+        } else {
+            // No file, send as JSON
+            response = await apiService.updateOrderStatus(orderId, { status: statusToSend })
+        }
+        
+        const data = response.data
+
+        if (data.success) {
+            // Update local state
+            const orderIndex = orders.value.findIndex(o => o.id === orderId || o._id === orderId)
+            if (orderIndex !== -1) {
+                const completedOrder = { 
+                    ...orders.value[orderIndex], 
+                    status: 'completed',
+                    completedAt: new Date().toISOString(),
+                    proofOfDelivery: data.data?.proofOfDelivery || null
+                }
+                orders.value.splice(orderIndex, 1)
+                historyOrdersData.value.unshift(completedOrder)
+                updateStats()
+            }
+            success(`Order marked as completed successfully! 🎉`)
+            return true
+        } else {
+            error(data.message || 'Failed to update order')
+            return false
+        }
     } catch (err) {
-      error('Error updating order. Please try again.')
-      return false
+        console.error('Error updating order:', err)
+        error(err.response?.data?.message || 'Error updating order. Please try again.')
+        return false
     }
-  }
+}
 
   const updateStats = () => {
     const assigned = orders.value.filter(o => o.status === 'out-for-delivery').length

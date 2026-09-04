@@ -54,7 +54,7 @@
             <div class="text-xs text-gray-500">Assigned</div>
           </div>
           <div>
-            <div class="text-2xl font-bold text-green-500">{{ stats.completed || 0 }}</div>
+            <div class="text-2xl font-bold text-green-500">{{ displayUser.completedOrdersCount || 0 }}</div>
             <div class="text-xs text-gray-500">Completed</div>
           </div>
         </div>
@@ -109,7 +109,8 @@ const displayUser = computed(() => {
     fullName: u.fullName || u.displayName || `${u.firstName || ''} ${u.lastName || ''}`.trim(),
     phone: u.phoneNumber || u.phone,
     vehicle: u.vehicleDescription || u.vehicle,
-    available: u.available !== undefined ? u.available : true
+    available: u.available !== undefined ? u.available : true,
+    completedOrdersCount: u.completedOrdersCount || 0,
   }
 })
 

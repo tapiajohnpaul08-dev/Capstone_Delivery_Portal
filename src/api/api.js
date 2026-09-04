@@ -74,17 +74,19 @@ export const apiService = {
   // Orders
   getAssignedOrders: () => api.get('/drivers/orders/assigned'),
   getOrderHistory: () => api.get('/drivers/orders/history'),
-  updateOrderStatus: (orderId, status, proofFile) => {
-    const formData = new FormData()
-    formData.append('status', status)
-    if (proofFile) {
-      formData.append('proofOfDelivery', proofFile)
+  // Updated: Accept either FormData or JSON
+  updateOrderStatus: (orderId, data) => {
+    // If data is FormData, use multipart/form-data
+    if (data instanceof FormData) {
+      return api.patch(`/drivers/orders/${orderId}/status`, data, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+    } else {
+      // Otherwise, send as JSON
+      return api.patch(`/drivers/orders/${orderId}/status`, data)
     }
-    return api.patch(`/drivers/orders/${orderId}/status`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    })
   }
 }
 
