@@ -11,6 +11,7 @@ export function useOrders() {
   const historyOrdersData = ref([])
   const isLoading = ref(false)
   const isLoadingHistory = ref(false)
+  const isUpdating = ref(false) // ← Add specific loading for updates
   const stats = ref({
     assigned: 0,
     completed: 0
@@ -70,8 +71,8 @@ export function useOrders() {
     }
   }
 
-// composables/useOrders.js
-const updateOrderStatus = async (orderId, newStatus, proofFile = null) => {
+  const updateOrderStatus = async (orderId, newStatus, proofFile = null) => {
+    isUpdating.value = true // ← Set loading before API call
     try {
         console.log(`📡 Attempting to update order ${orderId} to status: ${newStatus}`)
         
@@ -82,6 +83,7 @@ const updateOrderStatus = async (orderId, newStatus, proofFile = null) => {
             statusToSend = 'Completed'
         } else {
             error('You can only mark orders as Completed')
+            isUpdating.value = false
             return false
         }
 
@@ -96,7 +98,6 @@ const updateOrderStatus = async (orderId, newStatus, proofFile = null) => {
             formData.append('proofOfDelivery', proofFile)
             console.log(`📎 Attaching proof file: ${proofFile.name} (${proofFile.size} bytes)`)
             
-            // ✅ FIX: Pass the FormData as the second parameter
             response = await apiService.updateOrderStatus(orderId, formData)
         } else {
             // No file, send as JSON
@@ -120,17 +121,20 @@ const updateOrderStatus = async (orderId, newStatus, proofFile = null) => {
                 updateStats()
             }
             success(`Order marked as completed successfully! 🎉`)
+            isUpdating.value = false
             return true
         } else {
             error(data.message || 'Failed to update order')
+            isUpdating.value = false
             return false
         }
     } catch (err) {
         console.error('Error updating order:', err)
         error(err.response?.data?.message || 'Error updating order. Please try again.')
+        isUpdating.value = false
         return false
     }
-}
+  }
 
   const updateStats = () => {
     const assigned = orders.value.filter(o => o.status === 'out-for-delivery').length
@@ -173,6 +177,7 @@ const updateOrderStatus = async (orderId, newStatus, proofFile = null) => {
     stats,
     isLoading,
     isLoadingHistory,
+    isUpdating, // ← Export the updating state
     assignedOrders,
     completedOrders,
     cancelledOrders,

@@ -2,6 +2,15 @@
   <div>
     <h2 class="text-xl font-bold text-gray-900 mb-4">My Orders</h2>
     
+    <!-- Global Loading Overlay -->
+    <div v-if="isUpdating" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+      <div class="bg-white rounded-xl p-6 text-center max-w-sm mx-4">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mb-3"></div>
+        <p class="text-gray-700 font-medium">Updating order...</p>
+        <p class="text-gray-500 text-sm mt-1">Please wait while we process your request</p>
+      </div>
+    </div>
+
     <div v-if="isLoading" class="text-center py-8">
       <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
       <p class="text-gray-500 text-sm mt-2">Loading orders...</p>
@@ -52,7 +61,15 @@ import { ClipboardList, Package, CheckCircle } from 'lucide-vue-next'
 import OrderCard from '../components/Orders/OrderCard.vue'
 import { useOrders } from '../composables/useOrders'
 
-const { assignedOrders, completedOrders, isLoading, updateOrderStatus, fetchAssignedOrders, fetchOrderHistory } = useOrders()
+const { 
+  assignedOrders, 
+  completedOrders, 
+  isLoading, 
+  isUpdating, // ← Import the updating state
+  updateOrderStatus, 
+  fetchAssignedOrders, 
+  fetchOrderHistory 
+} = useOrders()
 
 const tabs = [
   { key: 'assigned', label: 'Assigned', icon: Package },
@@ -81,7 +98,7 @@ const emptyMessage = computed(() => {
 
 const handleCompleteOrder = async ({ orderId }) => {
   console.log('📡 Completing order:', orderId)
-  const success = await updateOrderStatus(orderId, 'completed')
+  const success = await updateOrderStatus(orderId, 'Completed') // ← Use 'Completed' for consistency
   if (success) {
     await Promise.all([fetchAssignedOrders(), fetchOrderHistory()])
   }
@@ -89,7 +106,7 @@ const handleCompleteOrder = async ({ orderId }) => {
 
 const handleProofUpload = async ({ orderId, file }) => {
   console.log('📡 Uploading proof for order:', orderId, file)
-  const success = await updateOrderStatus(orderId, 'completed', file)
+  const success = await updateOrderStatus(orderId, 'Completed', file) // ← Use 'Completed' for consistency
   if (success) {
     await Promise.all([fetchAssignedOrders(), fetchOrderHistory()])
   }

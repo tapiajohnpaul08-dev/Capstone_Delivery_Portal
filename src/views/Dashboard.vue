@@ -11,8 +11,17 @@
         <div class="text-xs text-gray-500 mt-0.5">Assigned</div>
       </div>
       <div class="bg-white border rounded-xl p-4 text-center transition-all hover:shadow-md">
-        <div class="text-2xl font-bold text-green-500">{{completedOrdersCount }}</div>
+        <div class="text-2xl font-bold text-green-500">{{ completedOrdersCount }}</div>
         <div class="text-xs text-gray-500 mt-0.5">Completed</div>
+      </div>
+    </div>
+
+    <!-- Global Loading Overlay -->
+    <div v-if="isUpdating" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+      <div class="bg-white rounded-xl p-6 text-center max-w-sm mx-4">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mb-3"></div>
+        <p class="text-gray-700 font-medium">Updating order...</p>
+        <p class="text-gray-500 text-sm mt-1">Please wait while we process your request</p>
       </div>
     </div>
 
@@ -58,7 +67,14 @@ import { useAuth } from '../composables/useAuth'
 import { useOrders } from '../composables/useOrders'
 
 const { user } = useAuth()
-const { stats, assignedOrders, isLoading, updateOrderStatus, fetchAssignedOrders } = useOrders()
+const { 
+  stats, 
+  assignedOrders, 
+  isLoading, 
+  isUpdating, // ← Import the updating state
+  updateOrderStatus, 
+  fetchAssignedOrders 
+} = useOrders()
 
 const driverName = computed(() => {
   const u = user.value || {}
@@ -76,12 +92,12 @@ const statusMessage = computed(() => {
 
 const completedOrdersCount = computed(() => {
   const u = user.value || {}
-  return u.completedOrdersCount || 89
+  return u.completedOrdersCount || 0
 })
 
 const handleCompleteOrder = async ({ orderId }) => {
   console.log('📡 Completing order:', orderId)
-  const success = await updateOrderStatus(orderId, 'Completed')
+  const success = await updateOrderStatus(orderId, 'Completed') // ← Use 'Completed'
   if (success) {
     await fetchAssignedOrders()
   }
@@ -89,7 +105,7 @@ const handleCompleteOrder = async ({ orderId }) => {
 
 const handleProofUpload = async ({ orderId, file }) => {
   console.log('📡 Uploading proof for order:', orderId, file)
-  const success = await updateOrderStatus(orderId, 'Completed', file)
+  const success = await updateOrderStatus(orderId, 'Completed', file) // ← Use 'Completed'
   if (success) {
     await fetchAssignedOrders()
   }

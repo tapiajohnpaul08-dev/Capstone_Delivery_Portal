@@ -49,6 +49,7 @@
               <button 
                 @click="clearPreview"
                 class="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 transition-colors shadow-lg"
+                :disabled="isSubmitting"
               >
                 <X :size="16" />
               </button>
@@ -64,13 +65,16 @@
               <button 
                 @click="openCamera"
                 class="py-2.5 px-4 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                :disabled="isSubmitting"
               >
                 <Camera :size="18" />
                 Take Photo
               </button>
               
               <!-- Gallery Upload -->
-              <label class="py-2.5 px-4 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 cursor-pointer">
+              <label class="py-2.5 px-4 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                :class="{ 'opacity-50 cursor-not-allowed': isSubmitting }"
+              >
                 <Upload :size="18" />
                 Choose Photo
                 <input 
@@ -78,6 +82,7 @@
                   accept="image/*"
                   @change="handleFileUpload"
                   class="hidden"
+                  :disabled="isSubmitting"
                 />
               </label>
             </div>
@@ -89,7 +94,9 @@
             :disabled="isSubmitting"
             class="w-full py-3 rounded-lg font-medium text-sm bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <CheckCircle :size="18" />
+            <!-- Loading spinner -->
+            <div v-if="isSubmitting" class="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+            <CheckCircle v-else :size="18" />
             {{ isSubmitting ? 'Submitting...' : 'Mark as Completed' }}
           </button>
         </div>
@@ -123,7 +130,7 @@
     </div>
   </div>
 
-  <!-- Camera Modal - Only shows when showCamera is true -->
+  <!-- Camera Modal -->
   <CameraModal 
     v-if="showCamera"
     @capture="handlePhotoCapture"
@@ -160,10 +167,10 @@ const { confirm } = useModal()
 
 // State
 const orderId = computed(() => props.order.id || props.order._id)
-const showCamera = ref(false) // IMPORTANT: Initialize as false
+const showCamera = ref(false)
 const previewImage = ref(null)
 const capturedFile = ref(null)
-const isSubmitting = ref(false)
+const isSubmitting = ref(false) // ← Local submitting state
 
 // Computed properties
 const isAssigned = computed(() => {
@@ -236,7 +243,8 @@ const formatDate = (dateString) => {
 }
 
 const openCamera = () => {
-  showCamera.value = true // Only opens when button is clicked
+  if (isSubmitting.value) return
+  showCamera.value = true
 }
 
 const closeCamera = () => {
@@ -250,11 +258,13 @@ const handlePhotoCapture = (data) => {
 }
 
 const clearPreview = () => {
+  if (isSubmitting.value) return
   previewImage.value = null
   capturedFile.value = null
 }
 
 const handleFileUpload = (event) => {
+  if (isSubmitting.value) return
   const file = event.target.files[0]
   if (file) {
     capturedFile.value = file
@@ -264,11 +274,12 @@ const handleFileUpload = (event) => {
     }
     reader.readAsDataURL(file)
   }
-  // Reset input so same file can be selected again
   event.target.value = ''
 }
 
 const handleComplete = async () => {
+  if (isSubmitting.value) return
+  
   const confirmed = await confirm({
     title: 'Complete Order',
     message: 'Are you sure you want to mark this order as completed?',
@@ -281,20 +292,21 @@ const handleComplete = async () => {
     isSubmitting.value = true
     try {
       if (capturedFile.value) {
-        // Upload with photo proof
         emit('upload-proof', { 
           orderId: orderId.value, 
           file: capturedFile.value 
         })
       } else {
-        // Complete without photo
         emit('complete-order', { orderId: orderId.value })
       }
       // Clear preview after successful submission
       clearPreview()
     } finally {
-      isSubmitting.value = false
+      // The parent component will handle the completion
     }
   }
 }
+
+// Reset submitting state when parent emits success
+// This will be handled by the parent component
 </script>
