@@ -22,7 +22,13 @@
         </div>
 
         <div class="flex justify-between text-gray-700 font-medium pt-1 border-t border-gray-100">
-          <span>₱{{ displayTotal.toLocaleString() }}</span>
+          <div class="flex flex-col gap-2">
+            <span class="font-bold">Amount to Paid: ₱{{ remainingBalance.toLocaleString() }}</span>
+            <span>Total Amount: ₱{{ displayTotal.toLocaleString() }}</span>
+          </div>
+          
+            
+        
           <span class="text-green-600" v-if="order.deliveryFee">Delivery: ₱{{ (order.deliveryFee || 0).toLocaleString() }}</span>
         </div>
 
@@ -88,10 +94,33 @@
             </div>
           </div>
 
+                    <!-- COD collection confirmation (only when payment is Partial) -->
+          <div
+            v-if="order.paymentStatus === 'Partial'"
+            class="mb-3 bg-amber-50 border border-amber-200 rounded-lg p-3"
+          >
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                v-model="codCollected"
+                :disabled="isSubmitting"
+                class="mt-0.5 w-4 h-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+              />
+              <div class="text-sm">
+                <p class="font-semibold text-amber-800">
+                  Collect ₱{{ remainingBalance.toLocaleString() }} in cash
+                </p>
+                <p class="text-xs text-amber-600 mt-0.5 leading-snug">
+                  Check this only if you've received the remaining balance from the customer.
+                </p>
+              </div>
+            </label>
+          </div>
+
           <!-- Complete Button -->
           <button 
             @click="handleComplete"
-            :disabled="isSubmitting"
+            :disabled="isSubmitting "
             class="w-full py-3 rounded-lg font-medium text-sm bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <!-- Loading spinner -->
@@ -171,6 +200,21 @@ const showCamera = ref(false)
 const previewImage = ref(null)
 const capturedFile = ref(null)
 const isSubmitting = ref(false) // ← Local submitting state
+const codCollected = ref(false) // ← COD confirmation checkbox
+
+
+
+// Remaining balance = total minus sum of partial payments
+const remainingBalance = computed(() => {
+  const order = props.order
+  const total = Number(order.total) || Number(order.totalAmount) || Number(order.amount) || 0
+  const paid = Array.isArray(order.partialPayments)
+    ? order.partialPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+    : 0
+  return Math.max(0, total - paid)
+})
+
+
 
 // Computed properties
 const isAssigned = computed(() => {
@@ -279,27 +323,39 @@ const handleFileUpload = (event) => {
 
 const handleComplete = async () => {
   if (isSubmitting.value) return
-  
+
+  // Guard: COD orders need the checkbox ticked
+  if (props.order.paymentStatus === 'Partial' && !codCollected.value) {
+    return
+  }
+
   const confirmed = await confirm({
     title: 'Complete Order',
-    message: 'Are you sure you want to mark this order as completed?',
+    message: props.order.paymentStatus === 'Partial'
+      ? `Confirm you've collected ₱${remainingBalance.value.toLocaleString()} in cash. This order will be marked as completed.`
+      : 'Are you sure you want to mark this order as completed?',
     confirmText: 'Yes, Complete',
     cancelText: 'Cancel',
     type: 'success'
   })
-  
+
   if (confirmed) {
     isSubmitting.value = true
     try {
       if (capturedFile.value) {
-        emit('upload-proof', { 
-          orderId: orderId.value, 
-          file: capturedFile.value 
+        emit('upload-proof', {
+          orderId: orderId.value,
+          file: capturedFile.value,
+          codCollected: codCollected.value,   // ← NEW
         })
       } else {
-        emit('complete-order', { orderId: orderId.value })
+        emit('complete-order', {
+          orderId: orderId.value,
+          codCollected: codCollected.value,   // ← NEW
+        })
       }
-      // Clear preview after successful submission
+      // Reset checkbox after submit
+      codCollected.value = false
       clearPreview()
     } finally {
       // The parent component will handle the completion

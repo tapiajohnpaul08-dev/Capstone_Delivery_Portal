@@ -32,6 +32,7 @@ export function useOrders() {
       if (data.success) {
         orders.value = data.data || []
         console.log(`📦 Loaded ${orders.value.length} assigned orders`)
+        console.log('fetchedddd', data)
         updateStats()
       } else {
         console.error('Failed to fetch orders:', data.message)
@@ -71,8 +72,8 @@ export function useOrders() {
     }
   }
 
-  const updateOrderStatus = async (orderId, newStatus, proofFile = null) => {
-    isUpdating.value = true // ← Set loading before API call
+const updateOrderStatus = async (orderId, newStatus, proofFile = null, codCollected = false) => {
+      isUpdating.value = true // ← Set loading before API call
     try {
         console.log(`📡 Attempting to update order ${orderId} to status: ${newStatus}`)
         
@@ -91,18 +92,18 @@ export function useOrders() {
 
         let response
         
-        if (proofFile) {
-            // For file upload, use FormData
-            const formData = new FormData()
-            formData.append('status', statusToSend)
-            formData.append('proofOfDelivery', proofFile)
-            console.log(`📎 Attaching proof file: ${proofFile.name} (${proofFile.size} bytes)`)
-            
-            response = await apiService.updateOrderStatus(orderId, formData)
-        } else {
-            // No file, send as JSON
-            response = await apiService.updateOrderStatus(orderId, { status: statusToSend })
-        }
+            if (proofFile) {
+      const formData = new FormData()
+      formData.append('status', statusToSend)
+      formData.append('proofOfDelivery', proofFile)
+      formData.append('codCollected', codCollected ? 'true' : 'false') // ← NEW
+      response = await apiService.updateOrderStatus(orderId, formData)
+    } else {
+      response = await apiService.updateOrderStatus(orderId, {
+        status: statusToSend,
+        codCollected: codCollected ? 'true' : 'false', // ← NEW
+      })
+    }
         
         const data = response.data
 

@@ -95,19 +95,19 @@ const completedOrdersCount = computed(() => {
   return u.completedOrdersCount || 0
 })
 
-const handleCompleteOrder = async ({ orderId }) => {
-  console.log('📡 Completing order:', orderId)
-  const success = await updateOrderStatus(orderId, 'Completed') // ← Use 'Completed'
+const handleCompleteOrder = async ({ orderId, codCollected = false }) => {
+  console.log('📡 Completing order:', orderId, '| codCollected:', codCollected)
+  const success = await updateOrderStatus(orderId, 'Completed', null, codCollected)
   if (success) {
-    await fetchAssignedOrders()
+    await Promise.all([fetchAssignedOrders(), fetchOrderHistory()])
   }
 }
 
-const handleProofUpload = async ({ orderId, file }) => {
-  console.log('📡 Uploading proof for order:', orderId, file)
-  const success = await updateOrderStatus(orderId, 'Completed', file) // ← Use 'Completed'
+const handleProofUpload = async ({ orderId, file, codCollected = false }) => {
+  console.log('📡 Uploading proof for order:', orderId, file, '| codCollected:', codCollected)
+  const success = await updateOrderStatus(orderId, 'Completed', file, codCollected)
   if (success) {
-    await fetchAssignedOrders()
+    await Promise.all([fetchAssignedOrders(), fetchOrderHistory()])
   }
 }
 
