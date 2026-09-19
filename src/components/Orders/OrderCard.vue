@@ -120,7 +120,7 @@
           <!-- Complete Button -->
           <button 
             @click="handleComplete"
-            :disabled="isSubmitting "
+            :disabled="isSubmitting || (order.paymentStatus === 'Partial' && !codCollected)"
             class="w-full py-3 rounded-lg font-medium text-sm bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <!-- Loading spinner -->
@@ -324,8 +324,13 @@ const handleFileUpload = (event) => {
 const handleComplete = async () => {
   if (isSubmitting.value) return
 
-  // Guard: COD orders need the checkbox ticked
+  // ✅ FIX #4a — Visible feedback instead of silent return
   if (props.order.paymentStatus === 'Partial' && !codCollected.value) {
+    // Use alert for now — the button is also disabled, so this only
+    // fires if someone calls handleComplete programmatically.
+    alert(
+      `Please check "Collect ₱${remainingBalance.value.toLocaleString()} in cash" before completing.`
+    )
     return
   }
 
@@ -341,24 +346,32 @@ const handleComplete = async () => {
 
   if (confirmed) {
     isSubmitting.value = true
+
+    // ✅ FIX #4b — Always reset isSubmitting so the button never gets stuck
     try {
       if (capturedFile.value) {
         emit('upload-proof', {
           orderId: orderId.value,
           file: capturedFile.value,
-          codCollected: codCollected.value,   // ← NEW
+          codCollected: codCollected.value,
         })
       } else {
         emit('complete-order', {
           orderId: orderId.value,
-          codCollected: codCollected.value,   // ← NEW
+          codCollected: codCollected.value,
         })
       }
-      // Reset checkbox after submit
       codCollected.value = false
       clearPreview()
+    } catch (e) {
+      console.error('Complete order failed:', e)
     } finally {
-      // The parent component will handle the completion
+      // Reset submitting after a short delay so the parent has time to
+      // process the emit + refetch. If the API fails, the button becomes
+      // usable again instead of being permanently stuck.
+      setTimeout(() => {
+        isSubmitting.value = false
+      }, 3000)
     }
   }
 }

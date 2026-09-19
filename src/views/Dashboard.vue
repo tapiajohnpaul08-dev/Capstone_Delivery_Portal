@@ -71,11 +71,11 @@ const {
   stats, 
   assignedOrders, 
   isLoading, 
-  isUpdating, // ← Import the updating state
+  isUpdating,
   updateOrderStatus, 
-  fetchAssignedOrders 
+  fetchAssignedOrders,
+  fetchOrderHistory   // ✅ FIX #5 — was missing, caused ReferenceError on completion
 } = useOrders()
-
 const driverName = computed(() => {
   const u = user.value || {}
   return u.firstName || u.displayName || 'Driver'
