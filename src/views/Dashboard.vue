@@ -47,13 +47,14 @@
       </div>
       
       <div v-else class="space-y-3">
-        <OrderCard 
-          v-for="order in assignedOrders" 
-          :key="order.id || order._id"
-          :order="order"
-          @complete-order="handleCompleteOrder"
-          @upload-proof="handleProofUpload"
-        />
+          <OrderCard 
+            v-for="order in assignedOrders" 
+            :key="order.id || order._id"
+            :order="order"
+            @complete-order="handleCompleteOrder"
+            @upload-proof="handleProofUpload"
+            @report-delay="handleReportDelay"
+          />
       </div>
     </div>
   </div>
@@ -72,6 +73,7 @@ const {
   assignedOrders, 
   isLoading, 
   isUpdating,
+  reportDelay,
   updateOrderStatus, 
   fetchAssignedOrders,
   fetchOrderHistory   // ✅ FIX #5 — was missing, caused ReferenceError on completion
@@ -110,6 +112,13 @@ const handleProofUpload = async ({ orderId, file, codCollected = false }) => {
     await Promise.all([fetchAssignedOrders(), fetchOrderHistory()])
   }
 }
+
+const handleReportDelay = async ({ orderId, category, reason, notes, newExpectedDelivery }) => {
+  console.log('📡 Reporting delay for order:', orderId)
+  await reportDelay(orderId, { category, reason, notes, newExpectedDelivery })
+  await fetchAssignedOrders()
+}
+
 
 onMounted(() => {
   fetchAssignedOrders()

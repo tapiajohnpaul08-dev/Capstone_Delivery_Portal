@@ -74,6 +74,15 @@ export const apiService = {
   // Orders
   getAssignedOrders: () => api.get('/drivers/orders/assigned'),
   getOrderHistory: () => api.get('/drivers/orders/history'),
+
+    // ✅ NEW — Driver reports a delay on an out-for-delivery order
+  reportDelay: (orderId, payload) =>
+    api.patch(`/drivers/orders/${orderId}/delay`, {
+      category: payload.category || 'other',
+      reason: payload.reason,
+      notes: payload.notes || '',
+      newExpectedDelivery: payload.newExpectedDelivery || null,
+    }),
   // Updated: Accept either FormData or JSON
   updateOrderStatus: (orderId, data) => {
     // If data is FormData, use multipart/form-data

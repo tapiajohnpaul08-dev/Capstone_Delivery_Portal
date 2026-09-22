@@ -36,31 +36,34 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, from) => {
   const token = localStorage.getItem('driverToken') || localStorage.getItem('token')
   const isAuthenticated = !!token
 
   console.log(`🔄 ${from.path} → ${to.path} | Token: ${isAuthenticated ? '✅' : '❌'}`)
 
+  // Not authenticated → kick to login (with a return-path breadcrumb)
   if (to.meta.requiresAuth && !isAuthenticated) {
     console.log('❌ No token, redirecting to login...')
     if (to.path !== '/') {
       sessionStorage.setItem('redirectAfterLogin', to.fullPath)
     }
-    return next('/')
+    return '/'
   }
 
+  // Already authenticated but hitting login → forward to dashboard
   if (to.path === '/' && isAuthenticated) {
     console.log('✅ Already logged in, redirecting to dashboard...')
     const redirectPath = sessionStorage.getItem('redirectAfterLogin')
     if (redirectPath) {
       sessionStorage.removeItem('redirectAfterLogin')
-      return next(redirectPath)
+      return redirectPath
     }
-    return next('/rider/dashboard')
+    return '/rider/dashboard'
   }
 
-  next()
+  // Allow navigation
+  return true
 })
 
 export default router

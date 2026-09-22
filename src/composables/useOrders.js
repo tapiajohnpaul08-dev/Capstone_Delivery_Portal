@@ -137,6 +137,38 @@ const updateOrderStatus = async (orderId, newStatus, proofFile = null, codCollec
     }
   }
 
+  // ✅ NEW — Driver reports a delay on their own assigned order
+  const reportDelay = async (orderId, payload) => {
+    isUpdating.value = true
+    try {
+      const response = await apiService.reportDelay(orderId, payload)
+      const data = response.data
+
+      if (data.success) {
+        // Patch the local order so the card updates instantly
+        const idx = orders.value.findIndex((o) => o.id === orderId || o._id === orderId)
+        if (idx !== -1) {
+          orders.value[idx] = {
+            ...orders.value[idx],
+            delayHistory: data.data?.delayHistory || orders.value[idx].delayHistory || [],
+            isCurrentlyDelayed: true,
+            currentDelay: (data.data?.delayHistory || []).slice(-1)[0] || null,
+          }
+        }
+        success('Delay reported — customer has been notified')
+        return { success: true, order: data.data }
+      }
+      error(data.message || 'Failed to report delay')
+      return { success: false, message: data.message }
+    } catch (err) {
+      console.error('Error reporting delay:', err)
+      error(err.response?.data?.message || 'Failed to report delay')
+      return { success: false, message: err.message }
+    } finally {
+      isUpdating.value = false
+    }
+  }
+
   const updateStats = () => {
     const assigned = orders.value.filter(o => o.status === 'out-for-delivery').length
     const completed = historyOrdersData.value.filter(o => o.status === 'completed').length
@@ -180,6 +212,7 @@ const updateOrderStatus = async (orderId, newStatus, proofFile = null, codCollec
     isLoadingHistory,
     isUpdating, // ← Export the updating state
     assignedOrders,
+    reportDelay,           // ← NEW
     completedOrders,
     cancelledOrders,
     historyOrders,

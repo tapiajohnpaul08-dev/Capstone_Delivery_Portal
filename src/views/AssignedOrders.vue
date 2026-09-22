@@ -43,6 +43,7 @@
             :order="order"
             @complete-order="handleCompleteOrder"
             @upload-proof="handleProofUpload"
+            @report-delay="handleReportDelay"
           />
         </template>
         
@@ -65,7 +66,8 @@ const {
   assignedOrders, 
   completedOrders, 
   isLoading, 
-  isUpdating, // ← Import the updating state
+  isUpdating,
+  reportDelay,
   updateOrderStatus, 
   fetchAssignedOrders, 
   fetchOrderHistory 
@@ -111,6 +113,12 @@ const handleProofUpload = async ({ orderId, file, codCollected = false }) => {
     await Promise.all([fetchAssignedOrders(), fetchOrderHistory()])
   }
 }
+const handleReportDelay = async ({ orderId, category, reason, notes, newExpectedDelivery }) => {
+  console.log('📡 Reporting delay for order:', orderId)
+  await reportDelay(orderId, { category, reason, notes, newExpectedDelivery })
+  await fetchAssignedOrders()
+}
+
 
 onMounted(async () => {
   await Promise.all([fetchAssignedOrders(), fetchOrderHistory()])
